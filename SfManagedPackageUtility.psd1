@@ -19,12 +19,7 @@
     ScriptsToProcess = @()
     
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-    NestedModules = @(
-        'Classes/SfPackage.ps1',
-        'Classes/VersionMismatch.ps1',
-        'Classes/PackageConfig.ps1',
-        'Classes/SalesforcePackageManager.ps1'
-    )
+    NestedModules = @()
     # Functions to export from this module
     FunctionsToExport = '*'
     # Cmdlets to export from this module

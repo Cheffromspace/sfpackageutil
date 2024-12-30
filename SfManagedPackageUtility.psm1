@@ -181,8 +181,8 @@ function Install-SalesforcePackages {
         # Only proceed if user confirms all changes
         $shouldProcess = $PSCmdlet.ShouldProcess($target, $operation)
         if ($shouldProcess) {
-            # Install all packages in dependency order, respecting WhatIf preference
-            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $WhatIfPreference)
+            # Install all packages in dependency order
+            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $configPath, $false)
         }
         # Return void to prevent boolean output
         return
