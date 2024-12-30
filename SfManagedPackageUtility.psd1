@@ -16,7 +16,12 @@
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '5.1'
     # Script files (.ps1) that are run in the caller's environment prior to importing this module.
-    ScriptsToProcess = @()
+    ScriptsToProcess = @(
+        'Classes/SfPackage.ps1',
+        'Classes/VersionMismatch.ps1',
+        'Classes/PackageConfig.ps1',
+        'Classes/SalesforcePackageManager.ps1'
+    )
     # Functions to export from this module
     FunctionsToExport = '*'
     # Cmdlets to export from this module
