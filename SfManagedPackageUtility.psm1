@@ -25,16 +25,14 @@ Preserves other settings like passwords, security types, and dependencies.
 Update-ConfigFileFromOrg -SourceOrg myorg@example.com
 Updates all package versions in the default config file from the specified org.
 .EXAMPLE
-Update-ConfigFileFromOrg -SourceOrg myorg@example.com -Namespace "ns1,ns2" -ConfigPath "./config.json"
-Updates only the specified packages in the given config file.
+Update-ConfigFileFromOrg -SourceOrg myorg@example.com -ConfigPath "./config.json"
+Updates packages in the given config file.
   
 .PARAMETER SourceOrg
 The username or alias of the source org to get package versions from.
   
 .PARAMETER ConfigPath
 Optional. The path to the configuration file. If not specified, looks for PackageConfig.json in the project root directory.
-.PARAMETER Namespace
-Optional. Comma-separated list of package namespaces to update. If not specified, all packages will be updated.
 #>
 function Update-ConfigFileFromOrg {
     [CmdletBinding(SupportsShouldProcess)]
@@ -49,20 +47,12 @@ function Update-ConfigFileFromOrg {
         if(Test-Path $_) { return $true }
         throw "Config file path does not exist: $_"
       })]
-      [String]$ConfigPath,
-      
-      [Parameter(Mandatory = $false)]
-      [ValidatePattern('^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$')]
-      [String]$Namespace
+      [String]$ConfigPath
     )
     
     try {
         # Get current packages from org for comparison
         $orgPackages = [SalesforcePackageManager]::GetOrgPackageVersions($SourceOrg)
-        if ($Namespace) {
-            $namespaces = $Namespace.Split(',').Trim()
-            $orgPackages = $orgPackages | Where-Object { $_.Namespace -in $namespaces }
-        }
         # Get current config for comparison
         $configPath = if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
             Join-Path (Get-ProjectRoot) "PackageConfig.json"
@@ -112,8 +102,8 @@ Handles package dependencies, installation keys, and security types from the con
 Install-SalesforcePackages -TargetOrg myorg@example.com
 Installs or updates all packages defined in the default config file, respecting dependencies.
 .EXAMPLE
-Install-SalesforcePackages -TargetOrg myorg@example.com -Namespace "ns1,ns2" -Confirm:$false
-Installs only the specified packages without prompting for confirmation.
+Install-SalesforcePackages -TargetOrg myorg@example.com -Confirm:$false
+Installs packages without prompting for confirmation.
 .EXAMPLE
 Install-SalesforcePackages -TargetOrg myorg@example.com -WhatIf
 Shows what changes would be made without actually making them.
@@ -123,8 +113,6 @@ The username or alias of the target org to install packages in.
   
 .PARAMETER ConfigPath
 Optional. The path to the configuration file. If not specified, looks for PackageConfig.json in the project root directory.
-.PARAMETER Namespace
-Optional. Comma-separated list of package namespaces to install. If not specified, all packages will be installed in dependency order.
 #>
 function Install-SalesforcePackages {
     [CmdletBinding(SupportsShouldProcess)]
@@ -139,11 +127,7 @@ function Install-SalesforcePackages {
         if(Test-Path $_) { return $true }
         throw "Config file path does not exist: $_"
       })]
-      [String]$ConfigPath,
-      
-      [Parameter(Mandatory = $false)]
-      [ValidatePattern('^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$')]
-      [String]$Namespace
+      [String]$ConfigPath
     )
     
     try {
@@ -156,40 +140,25 @@ function Install-SalesforcePackages {
         # Get list of packages that need updates
         $Mismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($TargetOrg, $configPath)
         
-        # Filter by namespace if specified
-        if ($Namespace) {
-            $namespaces = $Namespace.Split(',').Trim()
-            $Mismatches = $Mismatches | Where-Object { $_.Namespace -in $namespaces }
-        }
         if ($null -eq $Mismatches -or $Mismatches.Count -eq 0) {
             Write-Host "No package updates needed"
             return
         }
         
-        $UpdateNeeded = $Mismatches | Where-Object { $_.TargetNeedsUpdate }
-        if ($UpdateNeeded.Count -eq 0) {
-            Write-Host "No package updates needed"
-            return
-        }
         # Preview changes for each package
-        foreach ($update in $UpdateNeeded) {
-            $target = "Package '$($update.Namespace)'"
-            $operation = if ($null -eq $update.TargetPackage) {
-                "Install new package (version $($update.SourceVersionNumber))"
+        foreach ($mismatch in $Mismatches) {
+            $target = "Package '$($mismatch.Namespace)'"
+            $operation = if ($null -eq $mismatch.TargetPackage) {
+                "Install new package (version $($mismatch.SourceVersionNumber))"
             } else {
-                "Update from version $($update.TargetVersionNumber) to $($update.SourceVersionNumber)"
+                "Update from version $($mismatch.TargetVersionNumber) to $($mismatch.SourceVersionNumber)"
             }
-            # Just display the planned operation, actual installation happens after the loop
+            # Just display the planned operation
             $PSCmdlet.ShouldProcess($target, $operation)
         }
 
-        # Get all namespaces that need updates
-        $namespacesToUpdate = $UpdateNeeded | ForEach-Object { $_.Namespace }
-        
-        # Perform the actual installation in a single call
-        if ($namespacesToUpdate.Count -gt 0) {
-            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $namespacesToUpdate)
-        }
+        # Install all packages in dependency order
+        [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath)
     }
     catch {
         Write-Error "Failed to install packages: $_"
