@@ -1,7 +1,3 @@
-using module "./PackageConfig.ps1"
-using module "./SfPackage.ps1"
-using module "./VersionMismatch.ps1"
-
 class SalesforcePackageManager
 {
   # Compares package versions between config and org, returns needed updates

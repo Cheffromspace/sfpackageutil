@@ -10,9 +10,9 @@ function Get-ProjectRoot {
     }
 }
 # Dot source the class files in dependency order
-. $PSScriptRoot\Classes\PackageConfig.ps1
 . $PSScriptRoot\Classes\SfPackage.ps1
 . $PSScriptRoot\Classes\VersionMismatch.ps1
+. $PSScriptRoot\Classes\PackageConfig.ps1
 . $PSScriptRoot\Classes\SalesforcePackageManager.ps1
 <# 
 .SYNOPSIS
