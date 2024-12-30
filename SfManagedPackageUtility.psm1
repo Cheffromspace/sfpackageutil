@@ -179,11 +179,16 @@ function Install-SalesforcePackages {
             } else {
                 "Update from version $($update.TargetVersionNumber) to $($update.SourceVersionNumber)"
             }
-            if ($PSCmdlet.ShouldProcess($target, $operation)) {
-                # Convert namespace string to array for single package
-                $namespaceArray = @($update.Namespace)
-                [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $namespaceArray)
-            }
+            # Just display the planned operation, actual installation happens after the loop
+            $PSCmdlet.ShouldProcess($target, $operation)
+        }
+
+        # Get all namespaces that need updates
+        $namespacesToUpdate = $UpdateNeeded | ForEach-Object { $_.Namespace }
+        
+        # Perform the actual installation in a single call
+        if ($namespacesToUpdate.Count -gt 0) {
+            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $namespacesToUpdate)
         }
     }
     catch {
