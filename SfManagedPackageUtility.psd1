@@ -16,7 +16,10 @@
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '5.1'
     # Script files (.ps1) that are run in the caller's environment prior to importing this module.
-    ScriptsToProcess = @(
+    ScriptsToProcess = @()
+    
+    # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
+    NestedModules = @(
         'Classes/SfPackage.ps1',
         'Classes/VersionMismatch.ps1',
         'Classes/PackageConfig.ps1',

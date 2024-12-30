@@ -1,7 +1,4 @@
 using namespace System.Collections.Generic
-using module "./VersionMismatch.ps1"
-using module "./PackageConfig.ps1"
-using module "./SfPackage.ps1"
 
 class SalesforcePackageManager
 {
