@@ -102,11 +102,14 @@ function Update-ConfigFileFromOrg {
         } | Out-String)
 
         # Only proceed if user confirms all changes
-        if ($PSCmdlet.ShouldProcess($target, $operation)) {
+        $shouldProcess = $PSCmdlet.ShouldProcess($target, $operation)
+        if ($shouldProcess) {
             foreach ($change in $changes) {
                 [SalesforcePackageManager]::UpdateConfigFromOrg($SourceOrg, $configPath, $change.Package.Namespace)
             }
         }
+        # Return void to prevent boolean output
+        return
     } catch {
         Write-Error "Failed to update config file: $_"
     }
@@ -176,10 +179,13 @@ function Install-SalesforcePackages {
         } | Out-String)
 
         # Only proceed if user confirms all changes
-        if ($PSCmdlet.ShouldProcess($target, $operation)) {
-            # Install all packages in dependency order
-            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath)
+        $shouldProcess = $PSCmdlet.ShouldProcess($target, $operation)
+        if ($shouldProcess) {
+            # Install all packages in dependency order, respecting WhatIf preference
+            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $WhatIfPreference)
         }
+        # Return void to prevent boolean output
+        return
     }
     catch {
         Write-Error "Failed to install packages: $_"

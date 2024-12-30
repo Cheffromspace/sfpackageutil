@@ -293,12 +293,17 @@ class SalesforcePackageManager
     }
   }
   
-  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath)
+  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath, [bool]$WhatIf = $false)
   {
     # Get packages that need updates
     $versionMismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($OrgUserName, $ConfigPath)
     if ($versionMismatches.Count -eq 0) {
       Write-Host "All packages are up to date."
+      return
+    }
+
+    # If in WhatIf mode, just return without installing
+    if ($WhatIf) {
       return
     }
 
@@ -349,8 +354,8 @@ class SalesforcePackageManager
         }
       }
             
-      # Only install if package needs an update
-      if ($needsUpdate[$pkg.Namespace]) {
+      # Only install if package needs an update and not in WhatIf mode
+      if ($needsUpdate[$pkg.Namespace] -and -not $WhatIf) {
         Write-Host "Installing package: $($pkg.Namespace)"
         [SalesforcePackageManager]::InstallPackage($OrgUserName, $pkg.PackageId, $pkg.Password, $pkg.SecurityType)
       }
