@@ -64,7 +64,8 @@ function Update-ConfigFileFromOrg {
         } else {
             @{ packages = @() }
         }
-        # Preview changes
+        # Build list of changes
+        $changes = @()
         foreach ($orgPkg in $orgPackages) {
             $configPkg = $currentConfig.packages | Where-Object { $_.namespace -eq $orgPkg.Namespace }
             $action = if ($null -ne $configPkg) {
@@ -77,14 +78,33 @@ function Update-ConfigFileFromOrg {
             } else {
                 "Add"
             }
-            $target = "Package '$($orgPkg.Namespace)'"
-            $operation = switch ($action) {
-                "Update" { "Update version to $($orgPkg.VersionNumber) and ID to $($orgPkg.PackageVersionId)" }
-                "Add" { "Add new package (version $($orgPkg.VersionNumber))" }
-                "Skip" { "No changes needed" }
+            if ($action -ne "Skip") {
+                $changes += @{
+                    Package = $orgPkg
+                    Action = $action
+                }
             }
-            if ($action -ne "Skip" -and $PSCmdlet.ShouldProcess($target, $operation)) {
-                [SalesforcePackageManager]::UpdateConfigFromOrg($SourceOrg, $configPath, $orgPkg.Namespace)
+        }
+
+        if ($changes.Count -eq 0) {
+            Write-Host "No updates needed"
+            return
+        }
+
+        # Preview all changes at once
+        $target = "Configuration file"
+        $operation = "Update package versions:`n" + ($changes | ForEach-Object {
+            $pkg = $_.Package
+            switch ($_.Action) {
+                "Update" { "  - Update $($pkg.Namespace) to version $($pkg.VersionNumber)" }
+                "Add" { "  - Add $($pkg.Namespace) version $($pkg.VersionNumber)" }
+            }
+        } | Out-String)
+
+        # Only proceed if user confirms all changes
+        if ($PSCmdlet.ShouldProcess($target, $operation)) {
+            foreach ($change in $changes) {
+                [SalesforcePackageManager]::UpdateConfigFromOrg($SourceOrg, $configPath, $change.Package.Namespace)
             }
         }
     } catch {
@@ -145,20 +165,21 @@ function Install-SalesforcePackages {
             return
         }
         
-        # Preview changes for each package
-        foreach ($mismatch in $Mismatches) {
-            $target = "Package '$($mismatch.Namespace)'"
-            $operation = if ($null -eq $mismatch.TargetPackage) {
-                "Install new package (version $($mismatch.SourceVersionNumber))"
+        # Preview all changes at once
+        $target = "Target org: $TargetOrg"
+        $operation = "Install/update packages:`n" + ($Mismatches | ForEach-Object {
+            if ($null -eq $_.TargetPackage) {
+                "  - Install $($_.Namespace) version $($_.SourceVersionNumber)"
             } else {
-                "Update from version $($mismatch.TargetVersionNumber) to $($mismatch.SourceVersionNumber)"
+                "  - Update $($_.Namespace) from version $($_.TargetVersionNumber) to $($_.SourceVersionNumber)"
             }
-            # Just display the planned operation
-            $PSCmdlet.ShouldProcess($target, $operation)
-        }
+        } | Out-String)
 
-        # Install all packages in dependency order
-        [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath)
+        # Only proceed if user confirms all changes
+        if ($PSCmdlet.ShouldProcess($target, $operation)) {
+            # Install all packages in dependency order
+            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath)
+        }
     }
     catch {
         Write-Error "Failed to install packages: $_"
