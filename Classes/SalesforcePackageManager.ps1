@@ -293,81 +293,81 @@ class SalesforcePackageManager
     }
   }
   
-  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath, [bool]$WhatIf = $false)
+  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath) 
   {
-    # Get packages that need updates
-    $versionMismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($OrgUserName, $ConfigPath)
-    if ($versionMismatches.Count -eq 0) {
-      Write-Host "All packages are up to date."
-      return
-    }
-
-    # If in WhatIf mode, just return without installing
-    if ($WhatIf) {
-      return
-    }
-
-    # Get all configured packages for dependency resolution
-    $allPackages = [SalesforcePackageManager]::GetConfiguredPackages($ConfigPath)
-    
-    # Create lookup of packages needing updates
-    $needsUpdate = @{}
-    foreach ($mismatch in $versionMismatches) {
-      $needsUpdate[$mismatch.Namespace] = $true
-    }
+      # Get packages that need updates
+      $versionMismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($OrgUserName, $ConfigPath)
+      if ($versionMismatches.Count -eq 0) {
+          Write-Host "All packages are up to date."
+          return
+      }
+  
+      # Get all configured packages for dependency resolution
+      $allPackages = [SalesforcePackageManager]::GetConfiguredPackages($ConfigPath)
       
-    # Build dependency graph
-    $dependencyGraph = @{}
-    foreach ($pkg in $allPackages)
-    {
-      $dependencyGraph[$pkg.Namespace] = $pkg.DependsOnPackages
-    }
-
-    # Validate dependencies
-    foreach ($pkg in $allPackages)
-    {
-      foreach ($dep in $pkg.DependsOnPackages)
-      {
-        if (-not $dependencyGraph.ContainsKey($dep))
-        {
-          throw "Package $($pkg.Namespace) has undefined dependency: $dep"
-        }
+      # Create lookup of packages needing updates
+      $needsUpdate = @{}
+      foreach ($mismatch in $versionMismatches) {
+          $needsUpdate[$mismatch.Namespace] = $true
       }
-    }
-
-    # Install packages in dependency order
-    $installed = @{}
-    function Install-WithDependencies($pkg)
-    {
-      if ($installed[$pkg.Namespace])
-      {
-        return
+  
+      # Build adjacency list and in-degree count
+      $graph = @{}
+      $inDegree = @{}
+      
+      # Initialize graph and in-degree
+      foreach ($pkg in $allPackages) {
+          $graph[$pkg.Namespace] = [System.Collections.ArrayList]::new()
+          $inDegree[$pkg.Namespace] = 0
       }
-
-      # Install dependencies first
-      foreach ($dep in $pkg.DependsOnPackages)
-      {
-        $depPkg = $allPackages | Where-Object { $_.Namespace -eq $dep }
-        # Only install dependency if it needs an update
-        if ($needsUpdate[$dep]) {
-          Install-WithDependencies $depPkg
-        }
+  
+      # Build the graph
+      foreach ($pkg in $allPackages) {
+          foreach ($dep in $pkg.DependsOnPackages) {
+              if (-not $graph.ContainsKey($dep)) {
+                  throw "Package $($pkg.Namespace) has undefined dependency: $dep"
+              }
+              $null = $graph[$dep].Add($pkg.Namespace)
+              $inDegree[$pkg.Namespace]++
+          }
       }
-            
-      # Only install if package needs an update and not in WhatIf mode
-      if ($needsUpdate[$pkg.Namespace] -and -not $WhatIf) {
-        Write-Host "Installing package: $($pkg.Namespace)"
-        [SalesforcePackageManager]::InstallPackage($OrgUserName, $pkg.PackageId, $pkg.Password, $pkg.SecurityType)
+  
+      # Kahn's algorithm
+      $queue = [System.Collections.Queue]::new()
+      $installOrder = [System.Collections.ArrayList]::new()
+      
+      # Add all nodes with no dependencies to queue
+      foreach ($pkg in $allPackages) {
+          if ($inDegree[$pkg.Namespace] -eq 0) {
+              $queue.Enqueue($pkg.Namespace)
+          }
       }
-      $installed[$pkg.Namespace] = $true
-    }
-
-    # Install only packages that need updates, in dependency order
-    foreach ($pkg in $allPackages)
-    {
-      if ($needsUpdate[$pkg.Namespace]) {
-        Install-WithDependencies $pkg
+  
+      # Process queue
+      while ($queue.Count -gt 0) {
+          $current = $queue.Dequeue()
+          $null = $installOrder.Add($current)
+  
+          foreach ($neighbor in $graph[$current]) {
+              $inDegree[$neighbor]--
+              if ($inDegree[$neighbor] -eq 0) {
+                  $queue.Enqueue($neighbor)
+              }
+          }
       }
-    }
+  
+      # Check for circular dependencies
+      if ($installOrder.Count -ne $allPackages.Count) {
+          throw "Circular dependency detected in package configuration"
+      }
+  
+      # Install packages in topologically sorted order
+      foreach ($namespace in $installOrder) {
+          if ($needsUpdate[$namespace]) {
+              $pkg = $allPackages | Where-Object { $_.Namespace -eq $namespace }
+              Write-Host "Installing package: $namespace"
+              [SalesforcePackageManager]::InstallPackage($OrgUserName, $pkg.PackageId, $pkg.Password, $pkg.SecurityType)
+          }
+      }
   }
 }

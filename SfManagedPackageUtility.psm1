@@ -171,7 +171,7 @@ function Install-SalesforcePackages {
         }
         
         # Install packages
-        [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $false)
+        [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath)
     }
     catch {
         Write-Error "Failed to install packages: $_"
