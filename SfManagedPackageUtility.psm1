@@ -35,7 +35,6 @@ The username or alias of the source org to get package versions from.
 Optional. The path to the configuration file. If not specified, looks for PackageConfig.json in the project root directory.
 #>
 function Update-ConfigFileFromOrg {
-    [CmdletBinding(SupportsShouldProcess)]
     param (
       [Parameter(Mandatory = $true)]
       [ValidateNotNullOrEmpty()]
@@ -91,25 +90,18 @@ function Update-ConfigFileFromOrg {
             return
         }
 
-        # Preview all changes at once
-        $target = "Configuration file"
-        $operation = "Update package versions:`n" + ($changes | ForEach-Object {
-            $pkg = $_.Package
-            switch ($_.Action) {
-                "Update" { "  - Update $($pkg.Namespace) to version $($pkg.VersionNumber)" }
-                "Add" { "  - Add $($pkg.Namespace) version $($pkg.VersionNumber)" }
-            }
-        } | Out-String)
-
-        # Only proceed if user confirms all changes
-        $shouldProcess = $PSCmdlet.ShouldProcess($target, $operation)
-        if ($shouldProcess) {
-            foreach ($change in $changes) {
-                [SalesforcePackageManager]::UpdateConfigFromOrg($SourceOrg, $configPath, $change.Package.Namespace)
+        # Preview changes
+        Write-Host "Updating package versions in config file..."
+        foreach ($change in $changes) {
+            $pkg = $change.Package
+            switch ($change.Action) {
+                "Update" { Write-Host "  - Update $($pkg.Namespace) to version $($pkg.VersionNumber)" }
+                "Add" { Write-Host "  - Add $($pkg.Namespace) version $($pkg.VersionNumber)" }
             }
         }
-        # Return void to prevent boolean output
-        return
+
+        # Apply changes
+        [SalesforcePackageManager]::UpdateConfigFromOrg($SourceOrg, $ConfigPath)
     } catch {
         Write-Error "Failed to update config file: $_"
     }
@@ -138,7 +130,6 @@ The username or alias of the target org to install packages in.
 Optional. The path to the configuration file. If not specified, looks for PackageConfig.json in the project root directory.
 #>
 function Install-SalesforcePackages {
-    [CmdletBinding(SupportsShouldProcess)]
     param (
       [Parameter(Mandatory = $true)]
       [ValidateNotNullOrEmpty()]
@@ -160,6 +151,7 @@ function Install-SalesforcePackages {
         } else {
             $ConfigPath
         }
+        
         # Get list of packages that need updates
         $Mismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($TargetOrg, $configPath)
         
@@ -168,28 +160,21 @@ function Install-SalesforcePackages {
             return
         }
         
-        # Preview all changes at once
-        $target = "Target org: $TargetOrg"
-        $operation = "Install/update packages:`n" + ($Mismatches | ForEach-Object {
-            if ($null -eq $_.TargetPackage) {
-                "  - Install $($_.Namespace) version $($_.SourceVersionNumber)"
+        # Preview changes
+        Write-Host "Installing/updating packages in $TargetOrg..."
+        foreach ($mismatch in $Mismatches) {
+            if ($null -eq $mismatch.TargetPackage) {
+                Write-Host "  - Install $($mismatch.Namespace) version $($mismatch.SourceVersionNumber)"
             } else {
-                "  - Update $($_.Namespace) from version $($_.TargetVersionNumber) to $($_.SourceVersionNumber)"
+                Write-Host "  - Update $($mismatch.Namespace) from version $($mismatch.TargetVersionNumber) to $($mismatch.SourceVersionNumber)"
             }
-        } | Out-String)
-
-        # Only proceed if user confirms all changes
-        $shouldProcess = $PSCmdlet.ShouldProcess($target, $operation)
-        if ($shouldProcess) {
-            # Install all packages in dependency order
-            [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $configPath, $false)
         }
-        # Return void to prevent boolean output
-        return
+        
+        # Install packages
+        [SalesforcePackageManager]::InstallPackagesFromConfig($TargetOrg, $ConfigPath, $false)
     }
     catch {
         Write-Error "Failed to install packages: $_"
-        return
     }
 }
 # Export only the public functions
