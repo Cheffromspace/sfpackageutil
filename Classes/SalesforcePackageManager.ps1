@@ -1,3 +1,8 @@
+using namespace System.Collections.Generic
+using module "./VersionMismatch.ps1"
+using module "./PackageConfig.ps1"
+using module "./SfPackage.ps1"
+
 class SalesforcePackageManager
 {
   # Compares package versions between config and org, returns needed updates
@@ -291,10 +296,15 @@ class SalesforcePackageManager
     }
   }
   
-  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath)
+  static [void] InstallPackagesFromConfig([string]$OrgUserName, [string]$ConfigPath, [string[]]$Namespaces)
   {
     # Get packages that need updates
     $versionMismatches = [SalesforcePackageManager]::ComparePackagesWithConfig($OrgUserName, $ConfigPath)
+    
+    # Filter by namespace if specified
+    if ($null -ne $Namespaces -and $Namespaces.Count -gt 0) {
+      $versionMismatches = $versionMismatches | Where-Object { $_.Namespace -in $Namespaces }
+    }
     if ($versionMismatches.Count -eq 0) {
       Write-Host "All packages are up to date."
       return
