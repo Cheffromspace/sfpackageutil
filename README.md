@@ -17,14 +17,53 @@ A PowerShell module for managing Salesforce managed package installations across
 - Salesforce CLI (sf) installed and configured
 - Active Salesforce org with appropriate permissions
 
-## Installation
+## Pipeline use instructions
 
-1. Clone this repository or download the module files
-2. Place the module files in your PowerShell modules directory
-3. Import the module:
+1. In Salesforce Sandbox - Retrieve Consumer key
+
+- Option 1: UI Method
+
+  - Navigate to Setup > App Manager > SFDX_CI > View
+  - Click Manage Consumer Details
+  - Complete verification (email/authenticator)
+  - Copy Consumer Key
+
+- Option 2: CLI Method
+  - sf project retrieve start --target-org [username] --metadata ConnectedApp:SFDX_CI
+  - Extract and copy key from XML file
+
+2. In Bitbucket - Run Pipeline
+
+- Navigate to: Salesforce Repository > Pipelines
+  - Set pipeline parameters:
+  - Branch:
+    - Branch you want to sync with. `master` for Production, `develop` for Test sandbox, etc.
+  - Pipeline: install-managed-packages-manually
+    - Variables:
+      - CONSUMER_KEY: (paste from previous step)
+      - SFDC_USERNAME: deployment.user@zlamas.com.[sandbox name]
+
+3. Click Run
+
+4. Verification
+
+- Confirm pipeline completed without errors
+- Check managed packages installed in sandbox
+
+## Local Installation
+
+Use the Absolute Path when importing the module, e.g.,
+`C:\Users\e12345\Documents\salesforce\build\SfManagedPackageUtility\SfManagedPackageUtility.psd1`
+
+- Import the module:
+
 ```powershell
-Import-Module SfManagedPackageUtility
+Import-Module {Absolute Path}
 ```
+
+- Confirm Installation:
+
+`Get-Command -Module SfManagedPackageUtility`
 
 ## Usage
 
@@ -40,76 +79,28 @@ Create a JSON configuration file (`PackageConfig.json`) with your package detail
       "packageId": "04t...",
       "version": "1.2.0",
       "password": "optional-install-key",
-      "securityType": "AdminsOnly",
+      "securityType": "AdminsOnly"
     }
   ]
 }
 ```
 
-### Update Configuration from Source Org
-
-Sync your configuration file with package versions from a source org:
-
-```powershell
-Update-ConfigFileFromOrg -SourceOrg myorg@example.com
-```
-
-### Install Packages in Target Org
-
-Install or update packages in a target org based on the configuration:
-
-```powershell
-Install-SalesforcePackages -TargetOrg targetorg@example.com
-```
-
-## Retry Mechanism
-
-The module includes an automatic retry system for handling failed package installations:
-
-- Failed installations are automatically retried up to 3 times
-- Successfully installed packages are removed from the retry queue
-- 5-second delay between retry attempts
-- Clear status messages show which packages succeeded or failed
-- Final summary lists any packages that failed after all retry attempts
-
 ## Available Functions
-
-### Update-ConfigFileFromOrg
-
-Updates the package configuration file with versions and IDs from a source org.
-
-Parameters:
-- `SourceOrg` (Required): Username or alias of the source org
-- `ConfigPath` (Optional): Path to configuration file (defaults to ./PackageConfig.json)
 
 ### Install-SalesforcePackages
 
 Installs or updates packages in a target org based on the configuration file.
 
 Parameters:
+
 - `TargetOrg` (Required): Username or alias of the target org
 - `ConfigPath` (Optional): Path to configuration file (defaults to ./PackageConfig.json)
 
-## Error Handling
+### Update-ConfigFileFromOrg
 
-- Comprehensive error messages for installation failures
-- Validation of configuration file format and required fields
-- Automatic retry for failed installations
-- Detailed logging of installation progress and results
+Updates the package configuration file with versions and IDs from a source org.
 
-## Best Practices
+Parameters:
 
-1. Always test package installations in a sandbox environment first
-2. Keep your configuration file under version control
-3. Use descriptive org aliases for better clarity
-4. Review the installation preview before proceeding
-5. Monitor the installation logs for any warnings or errors
-6. Order packages in the configuration file based on their installation requirements
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+- `SourceOrg` (Required): Username or alias of the source org
+- `ConfigPath` (Optional): Path to configuration file (defaults to ./PackageConfig.json)
