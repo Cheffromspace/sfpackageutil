@@ -94,7 +94,6 @@ class SalesforcePackageManager
           version = $orgPkg.VersionNumber.ToString()
           password = $orgPkg.InstallKey
           securityType = $orgPkg.SecurityType
-          dependsOnPackages = @()
         }
         $configContent.packages += $newPkg
       }

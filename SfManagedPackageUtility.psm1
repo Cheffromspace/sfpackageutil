@@ -113,6 +113,12 @@ Installs or updates packages in a target org based on the configuration file.
 .DESCRIPTION
 Compares package versions between the configuration file and target org, then installs or updates packages as needed.
 Handles package dependencies, installation keys, and security types from the configuration.
+
+The installation process includes an automatic retry mechanism:
+- Failed package installations will be retried up to 3 times
+- Successfully installed packages are removed from the retry queue
+- There is a 5-second delay between retry attempts
+- Clear status messages indicate which packages succeeded or failed
 .EXAMPLE
 Install-SalesforcePackages -TargetOrg myorg@example.com
 Installs or updates all packages defined in the default config file, respecting dependencies.
