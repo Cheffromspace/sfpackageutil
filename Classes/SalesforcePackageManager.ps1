@@ -302,8 +302,8 @@ class SalesforcePackageManager
           return
       }
   
-      # Get all configured packages for dependency resolution
-      $allPackages = [SalesforcePackageManager]::GetConfiguredPackages($ConfigPath)
+      # Get all configured packages
+      $configuredPackages = [SalesforcePackageManager]::GetConfiguredPackages($ConfigPath)
       
       # Create lookup of packages needing updates
       $needsUpdate = @{}
@@ -311,63 +311,47 @@ class SalesforcePackageManager
           $needsUpdate[$mismatch.Namespace] = $true
       }
   
-      # Build adjacency list and in-degree count
-      $graph = @{}
-      $inDegree = @{}
+      # Track packages that need installation
+      $packagesToInstall = $configuredPackages | Where-Object { $needsUpdate[$_.Namespace] }
+      $maxRetries = 3
+      $retryCount = 0
       
-      # Initialize graph and in-degree
-      foreach ($pkg in $allPackages) {
-          $graph[$pkg.Namespace] = [System.Collections.ArrayList]::new()
-          $inDegree[$pkg.Namespace] = 0
-      }
-  
-      # Build the graph
-      foreach ($pkg in $allPackages) {
-          foreach ($dep in $pkg.DependsOnPackages) {
-              if (-not $graph.ContainsKey($dep)) {
-                  throw "Package $($pkg.Namespace) has undefined dependency: $dep"
+      while ($packagesToInstall.Count -gt 0 -and $retryCount -lt $maxRetries) {
+          if ($retryCount -gt 0) {
+              Write-Host "`nRetry attempt $retryCount of $maxRetries for remaining packages..."
+          }
+          
+          $successfulInstalls = @()
+          
+          foreach ($pkg in $packagesToInstall) {
+              Write-Host "Installing package: $($pkg.Namespace)"
+              try {
+                  [SalesforcePackageManager]::InstallPackage($OrgUserName, $pkg.PackageId, $pkg.Password, $pkg.SecurityType)
+                  $successfulInstalls += $pkg
+                  Write-Host "Successfully installed package: $($pkg.Namespace)" -ForegroundColor Green
               }
-              $null = $graph[$dep].Add($pkg.Namespace)
-              $inDegree[$pkg.Namespace]++
-          }
-      }
-  
-      # Kahn's algorithm
-      $queue = [System.Collections.Queue]::new()
-      $installOrder = [System.Collections.ArrayList]::new()
-      
-      # Add all nodes with no dependencies to queue
-      foreach ($pkg in $allPackages) {
-          if ($inDegree[$pkg.Namespace] -eq 0) {
-              $queue.Enqueue($pkg.Namespace)
-          }
-      }
-  
-      # Process queue
-      while ($queue.Count -gt 0) {
-          $current = $queue.Dequeue()
-          $null = $installOrder.Add($current)
-  
-          foreach ($neighbor in $graph[$current]) {
-              $inDegree[$neighbor]--
-              if ($inDegree[$neighbor] -eq 0) {
-                  $queue.Enqueue($neighbor)
+              catch {
+                  Write-Warning "Failed to install package $($pkg.Namespace): $_"
               }
           }
-      }
-  
-      # Check for circular dependencies
-      if ($installOrder.Count -ne $allPackages.Count) {
-          throw "Circular dependency detected in package configuration"
-      }
-  
-      # Install packages in topologically sorted order
-      foreach ($namespace in $installOrder) {
-          if ($needsUpdate[$namespace]) {
-              $pkg = $allPackages | Where-Object { $_.Namespace -eq $namespace }
-              Write-Host "Installing package: $namespace"
-              [SalesforcePackageManager]::InstallPackage($OrgUserName, $pkg.PackageId, $pkg.Password, $pkg.SecurityType)
+          
+          # Remove successful installations from the retry list
+          if ($successfulInstalls.Count -gt 0) {
+              $packagesToInstall = $packagesToInstall | Where-Object { $_ -notin $successfulInstalls }
           }
+          
+          $retryCount++
+          
+          # If there are still packages to install and we haven't hit max retries
+          if ($packagesToInstall.Count -gt 0 -and $retryCount -lt $maxRetries) {
+              Write-Host "`n$($packagesToInstall.Count) package(s) failed to install. Retrying in 5 seconds..."
+              Start-Sleep -Seconds 5
+          }
+      }
+      
+      if ($packagesToInstall.Count -gt 0) {
+          $failedPackages = $packagesToInstall.Namespace -join ", "
+          Write-Warning "Failed to install the following packages after $maxRetries attempts: $failedPackages"
       }
   }
 }
